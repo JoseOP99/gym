@@ -31,7 +31,9 @@ La cuenta inicial y un gimnasio GYM se crearon por solicitud expresa del usuario
 
 Las invitaciones se guardan en staff_invitations. Solo el propietario puede crearlas o revocarlas. La función invite-staff comprueba el token con Auth y la propiedad del gimnasio antes de usar la API administrativa de correo. Al ingresar, accept_staff_invitations vincula exclusivamente invitaciones vigentes al correo confirmado de la cuenta. No se usa metadata editable para otorgar permisos.
 
-Verificado: build, pruebas SQL de aislamiento, permisos, cierre idempotente, stock y ventas inmutables. Pruebas de interfaz y límites: ver [VERIFICACION.md](VERIFICACION.md). No se ha desplegado el frontend públicamente. La función invite-staff sí está desplegada en Supabase.
+Verificado: build, pruebas SQL de aislamiento, permisos, cierre idempotente, stock y ventas inmutables. Pruebas de interfaz y límites: ver [VERIFICACION.md](VERIFICACION.md). El usuario publicó el frontend en https://gymtuchin.vercel.app. La función invite-staff está desplegada en Supabase y permite ese origen exacto.
+
+Confirmación: el alta y el reenvío indican el origen de la página actual como destino, y el login permite reenviar confirmaciones. Supabase Auth necesita Site URL https://gymtuchin.vercel.app y Redirect URLs https://gymtuchin.vercel.app/**. La herramienta conectada no permite editar esos ajustes de Auth: requieren guardarse en el dashboard.
 
 Pendiente: comprobar entrega real de invitaciones y configurar URLs de redirección de Auth/SMTP; completar worker y programación de recordatorios; personalizar nombre, datos y tarifas definitivas. La cola SQL de recordatorios existe, pero no envía correos.
 

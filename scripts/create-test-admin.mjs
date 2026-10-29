@@ -39,7 +39,7 @@ writeFileSync(
 const { data, error } = await db.auth.signUp({
   email,
   password,
-  options: { emailRedirectTo: "http://127.0.0.1:5173/#panel" },
+  options: { emailRedirectTo: "https://gymtuchin.vercel.app/#panel" },
 });
 if (error) {
   writeFileSync(

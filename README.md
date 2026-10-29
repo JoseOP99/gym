@@ -27,6 +27,8 @@ El módulo Equipo guarda invitaciones por correo y rol. La función `invite-staf
 
 Antes de usar enlaces de invitación o recuperación, configurar en Supabase Auth las URLs de redirección locales y la URL de producción. Para local: `http://127.0.0.1:5173/**` y `http://localhost:5173/**`; establecer Site URL al origen usado. Verificar la entrega del correo y configurar SMTP para uso real.
 
+Producción: `https://gymtuchin.vercel.app`. En Supabase Auth, Site URL debe ser ese origen; Redirect URLs debe incluir `https://gymtuchin.vercel.app/**`. El código de registro y reenvío usa el origen de la página actual. Los correos generados antes de cambiar la configuración conservan el destino anterior; pedir uno nuevo desde Reenviar correo de confirmación en el login.
+
 ## Estado
 
 Landing con fotografías de referencia y precios iniciales; panel POS, clientes, membresías, productos, máquinas, historial, finanzas y equipo. Recordatorios automáticos: cola SQL preparada, worker y programación pendientes. Sin despliegue público de la aplicación.

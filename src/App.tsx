@@ -103,7 +103,8 @@ export default function App() {
 function Auth({ initialError }: { initialError: string }) {
   const [register, setRegister] = useState(false),
     [notice, setNotice] = useState(""),
-    [recover, setRecover] = useState(false);
+    [recover, setRecover] = useState(false),
+    [confirm, setConfirm] = useState(false);
   return (
     <div className="auth-layout">
       <section className="auth-story">
@@ -139,14 +140,18 @@ function Auth({ initialError }: { initialError: string }) {
           </a>
           <span className="section-number">BIENVENIDO A TU ESPACIO</span>
           <h2>
-            {recover
+            {confirm
+              ? "Confirma tu cuenta"
+              : recover
               ? "Recupera tu acceso"
               : register
                 ? "Crea tu cuenta"
                 : "Qué bueno verte."}
           </h2>
           <p className="muted">
-            {recover
+            {confirm
+              ? "Te enviaremos un nuevo enlace para confirmar tu correo."
+              : recover
               ? "Te enviaremos un enlace para establecer tu contraseña."
               : register
                 ? "Confirma tu correo para crear tu gimnasio o unirte al equipo."
@@ -159,9 +164,9 @@ function Auth({ initialError }: { initialError: string }) {
             </p>
           )}
           <DataForm
-            key={recover ? "recover" : register ? "register" : "login"}
+            key={confirm ? "confirm" : recover ? "recover" : register ? "register" : "login"}
             submit={
-              recover ? "Enviar enlace" : register ? "Crear cuenta" : "Ingresar"
+              confirm ? "Reenviar confirmación" : recover ? "Enviar enlace" : register ? "Crear cuenta" : "Ingresar"
             }
             onSubmit={async (f) => {
               setNotice("");
@@ -169,7 +174,14 @@ function Auth({ initialError }: { initialError: string }) {
                 email: String(f.get("email")).trim(),
                 password: String(f.get("password")),
               };
-              if (recover) {
+              if (confirm) {
+                check(await db.auth.resend({
+                  type: "signup",
+                  email: credentials.email,
+                  options: { emailRedirectTo: window.location.origin + "/#panel" },
+                }));
+                setNotice("Si tu cuenta está pendiente de confirmación, recibirás un nuevo enlace. Revisa también la carpeta de spam.");
+              } else if (recover) {
                 check(
                   await db.auth.resetPasswordForEmail(credentials.email, {
                     redirectTo: window.location.origin + "/?setup=1",
@@ -179,7 +191,10 @@ function Auth({ initialError }: { initialError: string }) {
                   "Si existe una cuenta con este correo, recibirás un enlace para recuperar el acceso.",
                 );
               } else if (register) {
-                check(await db.auth.signUp(credentials));
+                check(await db.auth.signUp({
+                  ...credentials,
+                  options: { emailRedirectTo: window.location.origin + "/#panel" },
+                }));
                 setNotice(
                   "Revisa tu correo para confirmar la cuenta. Si ya existe, ingresa con tu contraseña.",
                 );
@@ -196,7 +211,7 @@ function Auth({ initialError }: { initialError: string }) {
               autoComplete="email"
               required
             />
-            {!recover && (
+            {!recover && !confirm && (
               <Field
                 name="password"
                 label="Contraseña"
@@ -213,6 +228,7 @@ function Auth({ initialError }: { initialError: string }) {
               onClick={() => {
                 setRecover(!recover);
                 setRegister(false);
+                setConfirm(false);
                 setNotice("");
               }}
             >
@@ -223,12 +239,19 @@ function Auth({ initialError }: { initialError: string }) {
               onClick={() => {
                 setRegister(!register);
                 setRecover(false);
+                setConfirm(false);
                 setNotice("");
               }}
             >
               {register ? "Ya tengo cuenta" : "Crear cuenta"}
             </button>
           </div>
+          <button className="text-button" onClick={() => {
+            setConfirm(!confirm);
+            setRegister(false);
+            setRecover(false);
+            setNotice("");
+          }}>{confirm ? "Volver al login" : "Reenviar correo de confirmación"}</button>
           <p className="auth-note">
             <ShieldCheck size={16} /> Acceso para propietarios y colaboradores.
           </p>

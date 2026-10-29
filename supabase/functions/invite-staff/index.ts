@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0';
-const origins=['http://127.0.0.1:5173','http://localhost:5173','http://localhost:3000'];
+const origins=['https://gymtuchin.vercel.app','http://127.0.0.1:5173','http://localhost:5173','http://localhost:3000'];
 Deno.serve(async(req:Request)=>{
  const origin=req.headers.get('origin');
  const headers={'Content-Type':'application/json','Access-Control-Allow-Origin':origin&&origins.includes(origin)?origin:origins[0],'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS','Vary':'Origin'};
