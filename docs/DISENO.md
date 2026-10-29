@@ -14,3 +14,9 @@ Landing: navegación pública, hero con fotografía de pesas, entrenamiento, dos
 Fotografías externas de Victor Freitas y Greg Rosenke, Unsplash, con enlaces de crédito. Representan el concepto, no las instalaciones reales del cliente. Sustituirlas por fotos propias cuando existan.
 
 Rutas por fragmento: inicio/secciones públicas, #login y #panel. Recuperación e invitación pueden abrir la pantalla para establecer contraseña.
+
+Superadministración: vista propia después del login de José, con contadores, alta de gimnasio e invitación del encargado, tarjetas de estado y controles Activar / Dar 7 días / Suspender. Permite entrar a cada gimnasio y volver a la plataforma.
+
+Encargado/operarios: acceso directo a los gimnasios asignados; no se presenta un formulario de alta de gimnasios. El panel muestra el tiempo de prueba restante. Al vencer, una pantalla de bloqueo explica que los datos se conservan y pide contactar a José.
+
+El acceso a la plataforma y las acciones permitidas derivan del backend, aunque el usuario manipule componentes o URLs.

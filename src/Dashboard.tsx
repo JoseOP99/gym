@@ -40,8 +40,8 @@ import {
   Payment,
 } from "./components";
 const roleNames: Record<Role, string> = {
-  owner: "Propietario",
-  reception: "Recepción",
+  owner: "Encargado",
+  reception: "Operario",
   inventory: "Inventario",
   instructor: "Instructor",
 };
@@ -95,6 +95,8 @@ export default function Dashboard({
   onNew,
   onSignOut,
   onRefresh,
+  platformAdmin = false,
+  accessLabel,
 }: {
   gym: Gym;
   gyms: Gym[];
@@ -104,6 +106,8 @@ export default function Dashboard({
   onNew: () => void;
   onSignOut: () => void;
   onRefresh: () => Promise<void>;
+  platformAdmin?: boolean;
+  accessLabel?: string;
 }) {
   const [tab, setTab] = useState("overview"),
     [version, setVersion] = useState(0),
@@ -366,15 +370,19 @@ export default function Dashboard({
             ))}
         </nav>
         <div className="sidebar-bottom">
-          <button className="text-button" onClick={onNew}>
-            <Plus size={16} /> Nuevo gimnasio
-          </button>
+          {platformAdmin && (
+            <button className="text-button" onClick={onNew}>
+              <Plus size={16} /> Gestionar gimnasios
+            </button>
+          )}
           <div className="account">
             <span className="avatar">
               {session.user.email?.slice(0, 1).toUpperCase()}
             </span>
             <div>
-              <strong>{roleNames[role]}</strong>
+              <strong>
+                {platformAdmin ? "Superadministrador" : roleNames[role]}
+              </strong>
               <small>{session.user.email}</small>
             </div>
             <button
@@ -416,7 +424,7 @@ export default function Dashboard({
               </p>
             </div>
             <span className="badge">
-              <span className="status-dot" /> Espacio activo
+              <span className="status-dot" /> {accessLabel || "Espacio activo"}
             </span>
           </div>
           <ErrorMessage message={error} />
@@ -494,7 +502,7 @@ export default function Dashboard({
                     <strong>{money(gym.daily_price)}</strong>
                   </div>
                   <div className="operation-line">
-                    <span>Membresía · 30 días</span>
+                    <span>Membresía · {gym.membership_days} días</span>
                     <strong>{money(gym.monthly_price)}</strong>
                   </div>
                   <div className="operation-line">
@@ -854,23 +862,25 @@ export default function Dashboard({
                                   >
                                     Editar
                                   </button>
-                                  <button
-                                    className="text-button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      act(async () => {
-                                        check(
-                                          await db
-                                            .from("clients")
-                                            .update({ active: !c.active })
-                                            .eq("id", c.id)
-                                            .eq("gym_id", gym.id),
-                                        );
-                                      })
-                                    }
-                                  >
-                                    {c.active ? "Archivar" : "Activar"}
-                                  </button>
+                                  {role === "owner" && (
+                                    <button
+                                      className="text-button"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        act(async () => {
+                                          check(
+                                            await db
+                                              .from("clients")
+                                              .update({ active: !c.active })
+                                              .eq("id", c.id)
+                                              .eq("gym_id", gym.id),
+                                          );
+                                        })
+                                      }
+                                    >
+                                      {c.active ? "Archivar" : "Activar"}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -888,7 +898,7 @@ export default function Dashboard({
               </section>
               {canSell && (
                 <section className="panel">
-                  <h2>Registrar membresía · 30 días</h2>
+                  <h2>Registrar membresía · {gym.membership_days} días</h2>
                   <p className="muted">
                     Valor: {money(gym.monthly_price)}. Una renovación anticipada
                     conserva los días restantes.
@@ -1034,23 +1044,25 @@ export default function Dashboard({
                                 >
                                   Editar
                                 </button>
-                                <button
-                                  className="text-button"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    act(async () => {
-                                      check(
-                                        await db
-                                          .from("products")
-                                          .update({ active: !p.active })
-                                          .eq("gym_id", gym.id)
-                                          .eq("id", p.id),
-                                      );
-                                    })
-                                  }
-                                >
-                                  {p.active ? "Archivar" : "Activar"}
-                                </button>
+                                {role === "owner" && (
+                                  <button
+                                    className="text-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      act(async () => {
+                                        check(
+                                          await db
+                                            .from("products")
+                                            .update({ active: !p.active })
+                                            .eq("gym_id", gym.id)
+                                            .eq("id", p.id),
+                                        );
+                                      })
+                                    }
+                                  >
+                                    {p.active ? "Archivar" : "Activar"}
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1112,7 +1124,9 @@ export default function Dashboard({
                       >
                         <option value="available">Disponible</option>
                         <option value="maintenance">En mantenimiento</option>
-                        <option value="retired">Retirada</option>
+                        {role === "owner" && (
+                          <option value="retired">Retirada</option>
+                        )}
                       </select>
                     </label>
                     <Field
@@ -1144,7 +1158,11 @@ export default function Dashboard({
                       }
                     </span>
                     <p className="muted">{m.notes || "Sin observaciones"}</p>
-                    <button className="secondary" onClick={() => setEdit(m)}>
+                    <button
+                      className="secondary"
+                      disabled={role !== "owner" && m.status === "retired"}
+                      onClick={() => setEdit(m)}
+                    >
                       Actualizar estado
                     </button>
                   </section>
@@ -1262,14 +1280,12 @@ export default function Dashboard({
                   submit="Registrar movimiento"
                   onSubmit={async (f) => {
                     check(
-                      await db
-                        .from("cash_entries")
-                        .insert({
-                          gym_id: gym.id,
-                          description: String(f.get("description")).trim(),
-                          direction: f.get("direction"),
-                          amount: Math.round(Number(f.get("amount")) * 100),
-                        }),
+                      await db.from("cash_entries").insert({
+                        gym_id: gym.id,
+                        description: String(f.get("description")).trim(),
+                        direction: f.get("direction"),
+                        amount: Math.round(Number(f.get("amount")) * 100),
+                      }),
                     );
                     refresh();
                   }}
@@ -1354,6 +1370,7 @@ export default function Dashboard({
                       .from("gyms")
                       .update({
                         name: String(f.get("name")).trim(),
+                        membership_days: Number(f.get("membership_days")),
                         daily_price: Math.round(Number(f.get("daily")) * 100),
                         monthly_price: Math.round(
                           Number(f.get("monthly")) * 100,
@@ -1386,12 +1403,21 @@ export default function Dashboard({
                   />
                   <Field
                     name="monthly"
-                    label="Membresía de 30 días (COP)"
+                    label="Precio de la membresía (COP)"
                     type="number"
                     min={0}
                     max={100000000}
                     step="0.01"
                     defaultValue={gym.monthly_price / 100}
+                    required
+                  />
+                  <Field
+                    name="membership_days"
+                    label="Días de vigencia"
+                    type="number"
+                    min={1}
+                    max={365}
+                    defaultValue={gym.membership_days}
                     required
                   />
                 </div>

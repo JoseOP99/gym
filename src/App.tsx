@@ -1,13 +1,12 @@
 import { check } from "./lib/check";
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Activity, ShieldCheck } from "lucide-react";
 import { db, configured, initialAuthCallback } from "./lib/supabase";
-import type { Gym, Role } from "./lib/domain";
 import { DataForm, Field, Footer, ErrorMessage } from "./components";
-import Dashboard from "./Dashboard";
 import Landing from "./Landing";
 import "./App.css";
+const Workspace = lazy(() => import("./Workspace"));
 export default function App() {
   const [route, setRoute] = useState(() =>
     initialAuthCallback.hasAuthResponse ? "#panel" : window.location.hash,
@@ -138,7 +137,15 @@ export default function App() {
       </main>
     );
   return session ? (
-    <Workspace key={session.user.id} session={session} />
+    <Suspense
+      fallback={
+        <main className="setup" aria-busy="true">
+          Abriendo tu espacio…
+        </main>
+      }
+    >
+      <Workspace key={session.user.id} session={session} />
+    </Suspense>
   ) : (
     <Auth initialError={error} />
   );
@@ -197,7 +204,7 @@ function Auth({ initialError }: { initialError: string }) {
               : recover
                 ? "Te enviaremos un enlace para establecer tu contraseña."
                 : register
-                  ? "Confirma tu correo para crear tu gimnasio o unirte al equipo."
+                  ? "Confirma tu correo para aceptar la invitación a tu gimnasio."
                   : "Ingresa con el correo de tu cuenta para continuar."}
           </p>
           <ErrorMessage message={initialError} />
@@ -331,136 +338,5 @@ function Auth({ initialError }: { initialError: string }) {
         <Footer />
       </main>
     </div>
-  );
-}
-function Workspace({ session }: { session: Session }) {
-  const [gyms, setGyms] = useState<Gym[]>([]),
-    [selected, setSelected] = useState(""),
-    [roles, setRoles] = useState<Record<string, Role>>({}),
-    [newGym, setNewGym] = useState(false),
-    [error, setError] = useState(""),
-    [loaded, setLoaded] = useState(false);
-  const load = useCallback(async () => {
-    check(await db.rpc("accept_staff_invitations"));
-    const results = await Promise.all([
-      db.from("gyms").select("*").order("created_at"),
-      db
-        .from("staff")
-        .select("gym_id,role")
-        .eq("user_id", session.user.id)
-        .eq("active", true),
-    ]);
-    results.forEach(check);
-    setGyms(results[0].data || []);
-    setRoles(
-      Object.fromEntries(
-        (results[1].data || []).map((s) => [s.gym_id, s.role]),
-      ),
-    );
-    setSelected((prev) =>
-      (results[0].data || []).some((g) => g.id === prev)
-        ? prev
-        : results[0].data?.[0]?.id || "",
-    );
-    setLoaded(true);
-  }, [session.user.id]);
-  useEffect(() => {
-    void Promise.resolve()
-      .then(load)
-      .catch((e) => {
-        setError(e.message);
-        setLoaded(true);
-      });
-  }, [load]);
-  const gym = gyms.find((g) => g.id === selected),
-    role: Role | undefined =
-      gym?.owner_id === session.user.id ? "owner" : roles[selected];
-  async function signOut() {
-    const result = await db.auth.signOut();
-    if (result.error) setError(result.error.message);
-  }
-  if (!loaded) return <main className="setup">Cargando tus gimnasios…</main>;
-  if (!gym || newGym)
-    return (
-      <main className="onboarding">
-        <div className="topline">
-          <span className="brand">
-            <Activity /> GYM.
-          </span>
-          <button className="secondary" onClick={signOut}>
-            Cerrar sesión
-          </button>
-        </div>
-        <div className="onboarding-card">
-          <span className="eyebrow">TU PRÓXIMO COMIENZO</span>
-          <h1>
-            {newGym ? "Un nuevo gimnasio." : "Dale espacio a tu gimnasio."}
-          </h1>
-          <p className="muted">
-            Crea el espacio de tu negocio. Si eres colaborador, pide al
-            propietario que agregue tu correo al equipo y luego actualiza.
-          </p>
-          <ErrorMessage message={error} />
-          <DataForm
-            submit="Crear gimnasio"
-            onSubmit={async (f) => {
-              const result = await db
-                .from("gyms")
-                .insert({
-                  name: String(f.get("name")).trim(),
-                  owner_id: session.user.id,
-                })
-                .select()
-                .single();
-              check(result);
-              await load();
-              setSelected(result.data.id);
-              setNewGym(false);
-            }}
-          >
-            <Field
-              name="name"
-              label="Nombre del gimnasio"
-              minLength={2}
-              maxLength={100}
-              required
-            />
-          </DataForm>
-          <div className="actions">
-            <button
-              className="secondary"
-              onClick={() => load().catch((e) => setError(e.message))}
-            >
-              Actualizar acceso
-            </button>
-            {newGym && (
-              <button className="text-button" onClick={() => setNewGym(false)}>
-                Volver
-              </button>
-            )}
-          </div>
-        </div>
-        <Footer />
-      </main>
-    );
-  if (!role)
-    return (
-      <main className="setup">
-        <h1>Sin acceso activo</h1>
-        <button onClick={signOut}>Cerrar sesión</button>
-      </main>
-    );
-  return (
-    <Dashboard
-      key={gym.id}
-      gym={gym}
-      gyms={gyms}
-      role={role}
-      session={session}
-      onSelect={setSelected}
-      onNew={() => setNewGym(true)}
-      onSignOut={signOut}
-      onRefresh={load}
-    />
   );
 }

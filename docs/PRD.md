@@ -1,15 +1,26 @@
-# Primera versión
+# Plataforma de pruebas para gimnasios
 
-- R1: acceso por correo y contraseña; propietarios y colaboradores, nunca clientes finales.
-- R2: un propietario crea varios gimnasios y asigna recepción, inventario e instructores a cada uno.
-- R3: cuentas POS abiertas por cliente, pase diario y productos; cierre atómico e idempotente, importes conservados e inventario descontado una sola vez.
-- R4: clientes y membresías con fecha de vencimiento; historial de pagos y estado calculado por fecha local.
-- R5: productos y máquinas; personal de inventario administra existencias y estados sin borrar.
-- R6: ingresos/egresos adicionales y exportación CSV con filtros de fecha y paginación.
-- R7: recordatorio tres días antes de vencer, con proveedor de correo y ejecución programada por configurar.
-- R8: aislamiento obligatorio por gimnasio; recepción no administra equipo ni finanzas; instructor no accede a ventas.
+## Usuarios
 
-Nombre provisional GYM. Cuenta inicial del propietario creada; confirmación de correo pendiente al crearla. Logo comercial y remitente propio pendientes. COP y America/Bogota son valores iniciales. La primera versión usa membresías de 30 días; mostrar siempre fechas exactas.
+- **Superadministrador (José):** crea gimnasios, invita o reemplaza encargados, consulta cada gimnasio, concede siete días adicionales, activa y suspende accesos. Su rol se guarda en una tabla privada sin autoasignación desde el cliente.
+- **Encargado:** administra un gimnasio asignado; ve dashboard, clientes, membresías, ventas, finanzas, equipo y configuración. Puede archivar o reactivar clientes, productos y máquinas.
+- **Operario:** registra clientes, visitas y ventas, cobra membresías y consulta el historial operativo. No crea gimnasios, configura tarifas ni archiva registros.
+- **Inventario:** mantiene existencias, productos y disponibilidad de máquinas, sin retirar registros ni consultar finanzas.
+- **Instructor:** consulta clientes/membresías dentro del gimnasio asignado.
 
-- R9: inicio público con fotografías y planes de referencia; botón Ingresar separado del contenido público.
-- R10: propietario invita personal por correo con roles recepción, inventario o instructor. La invitación se acepta únicamente desde una cuenta con el mismo correo confirmado.
+## Primera versión implementada
+
+- R1: login y recuperación por correo. Capturar el tipo de recuperación antes de que Supabase consuma su fragmento.
+- R2: solo José crea un gimnasio y una invitación de encargado, de forma atómica.
+- R3: el encargado acepta con el mismo correo confirmado. Su aceptación inicia una prueba de siete períodos de 24 horas.
+- R4: tras la prueba se bloquea todo el panel. Los datos permanecen; José puede reactivar o conceder otros siete días. No hay cobro automático.
+- R5: cada gimnasio conserva sus clientes, ventas, productos, máquinas, membresías y colaboradores, aislados por RLS.
+- R6: el encargado configura precio del pase, precio de membresía y su duración (1 a 365 días). Pagos anteriores conservan importes y períodos.
+- R7: POS con pase diario y productos, cierre transaccional, stock y ventas cerradas inmutables.
+- R8: consulta y CSV de ventas paginados. Clientes con mensualidad y estado por fecha.
+- R9: encargado invita colaboradores por correo con permisos limitados.
+- R10: las eliminaciones operativas son archivados. Nadie borra ventas cerradas desde el panel.
+
+## Pendiente
+
+Verificación de entrega real de una nueva invitación de encargado y su aceptación; cuenta SMTP propia si se ofrece a terceros; recordatorios automáticos de membresía (cola SQL preparada, envío/programación pendientes); marca y referencias definitivas de cada cliente.

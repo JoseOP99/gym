@@ -5,6 +5,11 @@ export type Gym = {
   owner_id: string;
   daily_price: number;
   monthly_price: number;
+  membership_days: number;
+  lifecycle: "pending" | "trial" | "active" | "suspended";
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  created_by: string;
 };
 export type Client = {
   id: string;

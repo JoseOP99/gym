@@ -15,8 +15,8 @@ type Invitation = {
   revoked_at: string | null;
 };
 const names: Record<Role, string> = {
-  owner: "Propietario",
-  reception: "Recepción",
+  owner: "Encargado",
+  reception: "Operario",
   inventory: "Inventario",
   instructor: "Instructor",
 };
@@ -36,6 +36,7 @@ export default function Team({ gymId }: { gymId: string }) {
         .from("staff_invitations")
         .select("*")
         .eq("gym_id", gymId)
+        .eq("kind", "staff")
         .order("created_at", { ascending: false })
         .limit(100),
     ])
@@ -96,8 +97,8 @@ export default function Team({ gymId }: { gymId: string }) {
       <section className="panel">
         <h2>Invita a tu equipo</h2>
         <p className="muted">
-          Elige qué puede hacer cada persona. Tú, como propietario, tienes
-          acceso a todos los módulos de este gimnasio.
+          Elige qué puede hacer cada persona. Tú, como encargado, tienes acceso
+          a todos los módulos de este gimnasio.
         </p>
         <DataForm
           submit="Crear invitación y enviar correo"
@@ -144,7 +145,7 @@ export default function Team({ gymId }: { gymId: string }) {
                 <option value="inventory">
                   Inventario · productos y máquinas
                 </option>
-                <option value="reception">Recepción · clientes y ventas</option>
+                <option value="reception">Operario · clientes y ventas</option>
                 <option value="instructor">
                   Instructor · consulta de clientes
                 </option>
