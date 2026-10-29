@@ -106,6 +106,10 @@ Deno.serve(async (req: Request) => {
     { redirectTo: (origin || origins[0]) + "/?setup=1" },
   );
   if (inviteError) {
+    if (inviteError.code === "over_email_send_rate_limit" || inviteError.status === 429)
+      return respond(429, "La invitación quedó guardada, pero Supabase alcanzó su límite de correos. Reintenta más tarde. Para enviar invitaciones a clientes, la plataforma debe configurar un servicio SMTP propio.");
+    if (inviteError.code === "email_address_not_authorized")
+      return respond(502, "La invitación quedó guardada. El servicio de correo de prueba no permite enviar a este destinatario; la plataforma debe configurar un servicio SMTP propio.");
     if (
       ["email_exists", "user_already_exists"].includes(
         inviteError.code || "",

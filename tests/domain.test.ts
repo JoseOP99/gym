@@ -5,7 +5,21 @@ import {
   csvCell,
   membershipState,
   salesCsv,
+  effectiveRole,
+  membershipCoversDay,
 } from "../src/lib/domain.ts";
+test("el ingreso queda cubierto desde el inicio hasta antes del vencimiento de la membresía", () => {
+  const m = { starts_on: "2026-10-01", expires_on: "2026-11-01" };
+  assert.equal(membershipCoversDay(m, "2026-10-01"), true);
+  assert.equal(membershipCoversDay(m, "2026-10-31"), true);
+  assert.equal(membershipCoversDay(m, "2026-11-01"), false);
+  assert.equal(membershipCoversDay(m, "2026-09-30"), false);
+  assert.equal(membershipCoversDay(null, "2026-10-01"), false);
+});
+test("todos los roles operativos heredados usan Operario y el encargado conserva su rol", () => {
+  for (const role of ["reception", "inventory", "instructor"] as const) assert.equal(effectiveRole(role), "reception");
+  assert.equal(effectiveRole("owner"), "owner");
+});
 test("POS usa centavos exactos y rechaza cantidades inválidas", () => {
   assert.equal(
     total([

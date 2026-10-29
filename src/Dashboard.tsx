@@ -15,10 +15,14 @@ import {
   Wallet,
   ShieldCheck,
   Plus,
+  Menu,
+  X,
 } from "lucide-react";
 import Team from "./Team";
+import FinanceSummary from "./FinanceSummary";
+import EntryClientPicker from "./EntryClientPicker";
 import { db } from "./lib/supabase";
-import { money, localDate, membershipState, total } from "./lib/domain";
+import { money, localDate, membershipState, total, effectiveRole, membershipCoversDay } from "./lib/domain";
 import type {
   Gym,
   Role,
@@ -42,8 +46,8 @@ import {
 const roleNames: Record<Role, string> = {
   owner: "Encargado",
   reception: "Operario",
-  inventory: "Inventario",
-  instructor: "Instructor",
+  inventory: "Operario",
+  instructor: "Operario",
 };
 const tabs = [
   {
@@ -54,7 +58,7 @@ const tabs = [
   },
   {
     id: "pos",
-    name: "Punto de venta",
+    name: "Ingresos y ventas",
     icon: ShoppingBag,
     roles: ["owner", "reception"],
   },
@@ -68,13 +72,13 @@ const tabs = [
     id: "products",
     name: "Productos",
     icon: Package,
-    roles: ["owner", "inventory"],
+    roles: ["owner", "reception"],
   },
   {
     id: "machines",
     name: "Máquinas",
     icon: Dumbbell,
-    roles: ["owner", "inventory"],
+    roles: ["owner", "reception"],
   },
   {
     id: "history",
@@ -82,14 +86,14 @@ const tabs = [
     icon: Receipt,
     roles: ["owner", "reception"],
   },
-  { id: "finance", name: "Finanzas", icon: Wallet, roles: ["owner"] },
+  { id: "finance", name: "Gastos e ingresos", icon: Wallet, roles: ["owner"] },
   { id: "team", name: "Equipo", icon: ShieldCheck, roles: ["owner"] },
   { id: "settings", name: "Gimnasio", icon: Building2, roles: ["owner"] },
 ];
 export default function Dashboard({
   gym,
   gyms,
-  role,
+  role: assignedRole,
   session,
   onSelect,
   onNew,
@@ -109,6 +113,8 @@ export default function Dashboard({
   platformAdmin?: boolean;
   accessLabel?: string;
 }) {
+  const role = effectiveRole(assignedRole);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [tab, setTab] = useState("overview"),
     [version, setVersion] = useState(0),
     [error, setError] = useState(""),
@@ -128,6 +134,35 @@ export default function Dashboard({
     [items, setItems] = useState<Item[]>([]),
     [itemsLoading, setItemsLoading] = useState(false),
     [edit, setEdit] = useState<Client | Product | Machine | null>(null);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [visitNotice, setVisitNotice] = useState("");
+  useEffect(() => {
+    if (!activeSale || !window.matchMedia("(max-width: 1050px)").matches) return;
+    const frame = requestAnimationFrame(() => document.getElementById("active-ticket")?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    return () => cancelAnimationFrame(frame);
+  }, [activeSale]);
+  const [entryClient, setEntryClient] = useState("");
+  const [entrySearch, setEntrySearch] = useState("");
+  const [entryKind, setEntryKind] = useState("visit");
+  const [entryMembership, setEntryMembership] = useState<Membership | null>(null);
+  const [entryChecking, setEntryChecking] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setEntryMembership(null);
+      if (!entryClient || tab !== "pos" || entryKind === "products") { setEntryChecking(false); return; }
+      setEntryChecking(true);
+      const today = localDate();
+      const result = await db.from("memberships").select("client_id,starts_on,expires_on")
+        .eq("gym_id", gym.id).eq("client_id", entryClient).lte("starts_on", today).gt("expires_on", today)
+        .order("expires_on", { ascending: false }).limit(1).maybeSingle();
+      check(result);
+      if (!cancelled) setEntryMembership(result.data);
+    })().catch(e => { if (!cancelled) setError(e.message); }).finally(() => { if (!cancelled) setEntryChecking(false); });
+    return () => { cancelled = true; };
+  }, [entryClient, entryKind, tab, gym.id, version]);
   const [todayLabel] = useState(() =>
     new Intl.DateTimeFormat("es-CO", {
       dateStyle: "long",
@@ -155,7 +190,7 @@ export default function Dashboard({
         if (!cancelled) setter(result.data || []);
       };
       if (
-        ["overview", "clients", "pos"].includes(tab) &&
+        ["overview", "clients"].includes(tab) &&
         role !== "inventory"
       ) {
         let query = db
@@ -311,11 +346,17 @@ export default function Dashboard({
   const expiry = (id: string) =>
     memberships.find((m) => m.client_id === id)?.expires_on;
   function navigate(id: string) {
+    setEntryClient("");
+    setEntrySearch("");
+    setMenuOpen(false);
+    requestAnimationFrame(() => document.getElementById("page-title")?.focus());
     setTab(id);
     setPage(0);
     setSearch("");
     setEdit(null);
     setActiveSale("");
+    setSelectedSale(null);
+    setVisitNotice("");
     setSales([]);
     setError("");
   }
@@ -331,15 +372,17 @@ export default function Dashboard({
             : sales.length;
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={"sidebar" + (menuOpen ? " is-open" : "")}>
         <a href="/" className="brand">
           <span className="brand-mark">
             <Activity size={22} />
           </span>
           GYM<span className="brand-dot">.</span>
         </a>
+        <button className="mobile-nav-toggle secondary" aria-expanded={menuOpen} aria-controls="gym-navigation" onClick={() => setMenuOpen(open => !open)}>{menuOpen ? <X size={18} /> : <Menu size={18} />}{menuOpen ? "Cerrar menú" : "Menú"}</button>
+        <div className="sidebar-navigation" id="gym-navigation">
         <label className="gym-switch">
-          TU GIMNASIO
+          Gimnasio
           <select
             aria-label="Gimnasio activo"
             value={gym.id}
@@ -352,11 +395,15 @@ export default function Dashboard({
             ))}
           </select>
         </label>
-        <p className="nav-label">ESPACIO DE TRABAJO</p>
         <nav aria-label="Principal">
-          {tabs
-            .filter((t) => t.roles.includes(role))
-            .map((t) => (
+          {[
+            { name: "", ids: ["overview", "pos", "clients", "history"] },
+            { name: "Inventario", ids: ["products", "machines"] },
+            { name: "Administración", ids: ["finance", "team", "settings"] },
+          ].map(group => {
+            const entries = tabs.filter(t => group.ids.includes(t.id) && t.roles.includes(role));
+            if (!entries.length) return null;
+            const links = entries.map((t) => (
               <button
                 key={t.id}
                 aria-current={tab === t.id ? "page" : undefined}
@@ -367,7 +414,9 @@ export default function Dashboard({
                 {t.name}
                 {tab === t.id && <span className="nav-dot" />}
               </button>
-            ))}
+            ));
+            return group.name ? <details className="nav-group" key={group.name} open={group.ids.includes(tab) || undefined}><summary>{group.name}</summary><div className="nav-group-content">{links}</div></details> : <div className="nav-primary" key="daily">{links}</div>;
+          })}
         </nav>
         <div className="sidebar-bottom">
           {platformAdmin && (
@@ -394,6 +443,7 @@ export default function Dashboard({
             </button>
           </div>
         </div>
+        </div>
       </aside>
       <div className="workspace">
         <header className="topbar">
@@ -407,14 +457,9 @@ export default function Dashboard({
         <main className="content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">
+              <h1 id="page-title" tabIndex={-1}>
                 {tab === "overview"
-                  ? "CADA DÍA CUENTA"
-                  : "GESTIÓN DEL GIMNASIO"}
-              </p>
-              <h1>
-                {tab === "overview"
-                  ? "Todo listo para un gran día."
+                  ? "Resumen del gimnasio"
                   : tabs.find((t) => t.id === tab)?.name}
               </h1>
               <p className="muted">
@@ -435,6 +480,7 @@ export default function Dashboard({
           )}
           {tab === "overview" && (
             <>
+              {role === "owner" && <FinanceSummary gymId={gym.id} version={version} onExpense={() => navigate("finance")} />}
               <div className="stats">
                 {role !== "inventory" && (
                   <Stat
@@ -465,7 +511,6 @@ export default function Dashboard({
               </div>
               <div className="overview-grid">
                 <section className="panel welcome-panel">
-                  <span className="eyebrow">A TU RITMO</span>
                   <h2>
                     {canSell
                       ? "La próxima visita empieza aquí."
@@ -564,47 +609,51 @@ export default function Dashboard({
             </>
           )}
           {tab === "pos" && (
-            <div className="two-columns">
+            <div className={"two-columns pos-layout" + (activeSale ? " has-active-sale" : "")}>
               <div>
                 <section className="panel">
-                  <h2>Abrir cuenta</h2>
+                  <h2>Registrar atención</h2>
+                  <p className="muted">Registra una visita por cliente al día. Si ya ingresó, se abrirá su cuenta existente sin cobrar otro pase.</p>
+                  {visitNotice && <p className="notice" role="status">{visitNotice}</p>}
                   <DataForm
-                    submit="Registrar ingreso"
+                    submit={entryKind === "products" ? "Abrir compra de productos" : "Registrar ingreso"}
+                    resetOnSuccess
+                    disabled={entryChecking}
                     onSubmit={async (f) => {
-                      const { data, error } = await db.rpc("open_sale", {
-                        g: gym.id,
-                        c: f.get("client"),
-                        charge_pass: f.get("pass") === "on",
-                        request_id: crypto.randomUUID(),
+                      const requestId = crypto.randomUUID();
+                      const { data, error } = await db.rpc(entryKind === "products" ? "open_product_sale" : "open_sale", {
+                        g: gym.id, c: f.get("client"), request_id: requestId,
+                        ...(entryKind === "visit" ? { charge_pass: f.get("pass") === "on" } : {}),
                       });
                       check({ error });
+                      const result = await db.from("sales").select("*").eq("gym_id", gym.id).eq("id", data).single();
+                      check(result);
+                      setSelectedSale(result.data);
+                      setVisitNotice(entryKind === "products" ? "Compra de productos abierta. No registra otro ingreso ni cobra pase diario." : data !== requestId
+                        ? `Esta persona ya tiene un ingreso registrado. Se abrió la cuenta del ${new Date(result.data.opened_at).toLocaleString("es-CO", { timeZone: "America/Bogota" })}. ${result.data.status === "closed" ? "Ya está pagada y solo puede consultarse." : "Puedes continuar editando esta cuenta."}`
+                        : "Ingreso registrado. La cuenta está lista.");
                       setActiveSale(data);
+                      setEntryClient("");
+                      setEntrySearch("");
+                      setEntryMembership(null);
                       refresh();
                     }}
                   >
-                    <label>
-                      Cliente
-                      <select name="client" required defaultValue="">
-                        <option value="" disabled>
-                          Selecciona un cliente
-                        </option>
-                        {clients
-                          .filter((c) => c.active)
-                          .map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="checkbox">
+                    <div className="entry-kind" role="group" aria-label="Tipo de atención">
+                      <label><input type="radio" name="entry_kind" value="visit" checked={entryKind === "visit"} onChange={() => setEntryKind("visit")} />Ingreso al gimnasio</label>
+                      <label><input type="radio" name="entry_kind" value="products" checked={entryKind === "products"} onChange={() => setEntryKind("products")} />Solo productos</label>
+                    </div>
+                    <EntryClientPicker gymId={gym.id} value={entryClient} search={entrySearch} onSearch={value => { setEntrySearch(value); setEntryClient(""); setEntryMembership(null); }} onSelect={id => { setEntryClient(id); setEntryMembership(null); setEntryChecking(entryKind === "visit"); }} />
+                    {entryKind === "visit" && <>
+                    {entryChecking ? <p role="status">Consultando membresía…</p> : membershipCoversDay(entryMembership) ? <p className="notice" role="status">Membresía activa hasta {entryMembership!.expires_on}. Este ingreso está incluido: pase diario {money(0)}. Los productos se cobran aparte.</p> : <label className="checkbox">
                       <input type="checkbox" name="pass" defaultChecked />{" "}
                       Incluir pase diario · {money(gym.daily_price)}
-                    </label>
+                    </label>}
+                    </>}
+                    {entryKind === "products" && <p className="form-help">Abre una compra independiente para este cliente. Su ingreso y las cuentas pagadas se conservan.</p>}
                   </DataForm>
                   <p className="small muted">
-                    Hasta 100 clientes recientes. Registra clientes desde su
-                    módulo.
+                    Busca entre todos los clientes activos. Registra clientes nuevos desde su módulo.
                   </p>
                 </section>
                 <section className="panel">
@@ -616,7 +665,7 @@ export default function Dashboard({
                         className={
                           "sale-select " + (activeSale === s.id ? "active" : "")
                         }
-                        onClick={() => setActiveSale(s.id)}
+                        onClick={() => { setActiveSale(s.id); setSelectedSale(s); setVisitNotice(""); }}
                       >
                         <span>
                           {s.client_name}
@@ -639,17 +688,27 @@ export default function Dashboard({
                   )}
                 </section>
               </div>
-              <section className="panel ticket">
+              <section className="panel ticket" id="active-ticket">
                 {activeSale ? (
                   <>
-                    <span className="eyebrow">CUENTA ACTUAL</span>
+                    <p className="muted small">{selectedSale?.kind === "products" ? "Compra de productos" : "Cuenta del cliente"}</p>
                     <h2>
-                      {sales.find((s) => s.id === activeSale)?.client_name ||
+                      {selectedSale?.client_name || sales.find((s) => s.id === activeSale)?.client_name ||
                         "Cuenta seleccionada"}
                     </h2>
+                    {selectedSale?.status === "closed" && <div className="closed-sale-actions"><p>Esta cuenta está pagada. Puedes abrir otra compra para la misma persona sin modificarla.</p><button className="secondary" disabled={busy || !selectedSale.client_id} onClick={() => act(async () => {
+                      const opened = await db.rpc("open_product_sale", { g: gym.id, c: selectedSale.client_id, request_id: crypto.randomUUID() });
+                      check(opened);
+                      const result = await db.from("sales").select("*").eq("gym_id", gym.id).eq("id", opened.data).single();
+                      check(result); setSelectedSale(result.data); setActiveSale(opened.data); setVisitNotice("Nueva compra de productos. La cuenta pagada se conserva.");
+                    })}>Nueva compra para este cliente</button></div>}
+                    {selectedSale?.status !== "closed" && <div className="ticket-products"><h3>Agregar productos</h3><p className="form-help">Añade aquí lo que lleva el cliente. El cobro final está separado abajo.</p>
                     <DataForm
                       key={activeSale}
-                      submit="Añadir producto"
+                      disabled={selectedSale?.status === "closed"}
+                      submit="Añadir a la cuenta"
+                      submitVariant="secondary"
+                      resetOnSuccess
                       onSubmit={async (f) => {
                         check(
                           await db.rpc("add_item", {
@@ -687,6 +746,7 @@ export default function Dashboard({
                         required
                       />
                     </DataForm>
+                    </div>}
                     {itemsLoading ? (
                       <p role="status">Cargando conceptos…</p>
                     ) : (
@@ -699,7 +759,7 @@ export default function Dashboard({
                             </small>
                           </span>
                           <strong>{money(i.quantity * i.unit_price)}</strong>
-                          <button
+                          {selectedSale?.status !== "closed" && <button
                             className="text-button"
                             disabled={busy}
                             onClick={() =>
@@ -709,7 +769,7 @@ export default function Dashboard({
                             }
                           >
                             Quitar
-                          </button>
+                          </button>}
                         </div>
                       ))
                     )}
@@ -717,26 +777,27 @@ export default function Dashboard({
                       <span>Total</span>
                       <strong>{money(total(items))}</strong>
                     </div>
+                    {selectedSale?.status !== "closed" && <div className="ticket-checkout"><h3>Cobro final</h3>
                     <DataForm
-                      submit="Cerrar venta y registrar pago"
-                      disabled={itemsLoading || !items.length}
+                      submit={total(items) === 0 ? (selectedSale?.kind === "products" ? "Finalizar compra sin cobro" : "Finalizar ingreso sin cobro") : "Cerrar cuenta y cobrar"}
+                      disabled={itemsLoading || !items.length || selectedSale?.status === "closed"}
                       onSubmit={async (f) => {
                         check(
                           await db.rpc("close_sale", {
                             s: activeSale,
-                            method: f.get("method"),
+                            method: f.get("method") || "cash",
                           }),
                         );
                         setActiveSale("");
                         refresh();
                       }}
                     >
-                      <Payment />
+                      {total(items) > 0 ? <Payment /> : <p className="muted">Esta cuenta no tiene un importe por cobrar.</p>}
                     </DataForm>
                     <p className="small muted">
-                      Al cerrar, los importes quedan registrados y no se pueden
-                      editar.
+                      Al cerrar, esta cuenta queda pagada y no se modifica. Las compras posteriores se registran aparte.
                     </p>
+                    </div>}
                   </>
                 ) : (
                   <Empty
@@ -768,6 +829,7 @@ export default function Dashboard({
                   <DataForm
                     key={edit?.id || "new"}
                     submit={edit ? "Guardar cambios" : "Registrar cliente"}
+                    resetOnSuccess={!edit}
                     onSubmit={async (f) => {
                       const values = {
                         name: String(f.get("name")).trim(),
@@ -905,6 +967,7 @@ export default function Dashboard({
                   </p>
                   <DataForm
                     submit="Registrar pago y membresía"
+                    resetOnSuccess
                     onSubmit={async (f) => {
                       check(
                         await db.rpc("renew_membership", {
@@ -942,11 +1005,13 @@ export default function Dashboard({
           )}
           {tab === "products" && (
             <>
+              <p className="notice">Los productos son artículos que vendes en recepción, como agua o bebidas. Aquí defines precio de venta y existencias. El encargado registra el costo de las compras en Gastos e ingresos.</p>
               <section className="panel">
                 <h2>{edit ? "Editar producto" : "Agregar producto"}</h2>
                 <DataForm
                   key={edit?.id || "new"}
                   submit="Guardar producto"
+                  resetOnSuccess={!edit}
                   onSubmit={async (f) => {
                     const values = {
                       name: String(f.get("name")).trim(),
@@ -1086,11 +1151,13 @@ export default function Dashboard({
                 <DataForm
                   key={edit?.id || "new"}
                   submit="Guardar máquina"
+                  resetOnSuccess={!edit}
                   onSubmit={async (f) => {
                     const values = {
                       name: String(f.get("name")).trim(),
                       status: String(f.get("status")),
                       notes: String(f.get("notes")),
+                      asset_value: String(f.get("asset_value")).trim() === "" ? null : Math.round(Number(f.get("asset_value")) * 100),
                     };
                     check(
                       edit
@@ -1135,7 +1202,9 @@ export default function Dashboard({
                       maxLength={1000}
                       defaultValue={(edit as Machine)?.notes}
                     />
+                    <Field name="asset_value" label="Valor de la máquina (COP)" type="number" min={0} max={100000000} step="0.01" defaultValue={(edit as Machine)?.asset_value == null ? "" : (edit as Machine).asset_value! / 100} />
                   </div>
+                  <p className="small muted">Registra el precio de compra o valor estimado. Déjalo vacío si todavía no lo conoces. Se suma a los activos; no registra un gasto automáticamente.</p>
                 </DataForm>
                 {edit && (
                   <button className="text-button" onClick={() => setEdit(null)}>
@@ -1158,6 +1227,7 @@ export default function Dashboard({
                       }
                     </span>
                     <p className="muted">{m.notes || "Sin observaciones"}</p>
+                    <p>Valor: <strong>{m.asset_value == null ? "Sin valorar" : money(m.asset_value)}</strong></p>
                     <button
                       className="secondary"
                       disabled={role !== "owner" && m.status === "retired"}
@@ -1234,7 +1304,7 @@ export default function Dashboard({
                           <td>
                             {s.client_name}
                             <small>
-                              {s.kind === "membership" ? "Membresía" : "Visita"}
+                              {s.kind === "membership" ? "Membresía" : s.kind === "products" ? "Compra de productos" : "Visita"}
                             </small>
                           </td>
                           <td>
@@ -1271,13 +1341,14 @@ export default function Dashboard({
           {tab === "finance" && (
             <>
               <section className="panel">
-                <h2>Registrar movimiento adicional</h2>
+                <h2>Registrar un gasto o ingreso adicional</h2>
                 <p className="muted">
                   Las ventas se registran automáticamente en su historial. Aquí
-                  registra otros ingresos o gastos.
+                  registra otros ingresos o gastos. Por ejemplo: compra de un paquete de agua, artículos de aseo, arriendo o servicios.
                 </p>
                 <DataForm
                   submit="Registrar movimiento"
+                  resetOnSuccess
                   onSubmit={async (f) => {
                     check(
                       await db.from("cash_entries").insert({
@@ -1293,7 +1364,8 @@ export default function Dashboard({
                   <div className="form-grid">
                     <Field
                       name="description"
-                      label="Concepto"
+                      label="¿En qué gastaste o de dónde viene el ingreso?"
+                      placeholder="Ej. Compra de un paquete de agua"
                       minLength={2}
                       maxLength={300}
                       required
@@ -1301,7 +1373,7 @@ export default function Dashboard({
                     <label>
                       Tipo
                       <select name="direction">
-                        <option value="expense">Egreso</option>
+                        <option value="expense">Gasto / egreso</option>
                         <option value="income">Ingreso adicional</option>
                       </select>
                     </label>

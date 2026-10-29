@@ -14,6 +14,8 @@ import { gymAccess } from "./lib/trials";
 import type { Gym } from "./lib/domain";
 import { DataForm, Empty, ErrorMessage, Field, Footer } from "./components";
 import "./Platform.css";
+import ManualUser, { PasswordFields } from "./ManualUser";
+import { manualPassword, createManualAccess } from "./lib/manual-user";
 
 type ManagerInvitation = {
   id: string;
@@ -41,6 +43,8 @@ export default function Platform({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [inviteFor, setInviteFor] = useState("");
+  const [manualFor, setManualFor] = useState("");
+  const [delivery, setDelivery] = useState("manual");
   const [now, setNow] = useState(() => Date.now());
   const request = useRef({ fingerprint: "", id: "" });
   useEffect(() => {
@@ -168,10 +172,13 @@ export default function Platform({
             </p>
           </div>
           <DataForm
-            submit="Crear gimnasio e invitar"
+            submit={delivery === "manual" ? "Crear gimnasio y usuario manual" : "Crear gimnasio e invitar"}
+            resetOnSuccess
+            clearPasswords
             onSubmit={async (f) => {
               setError("");
               setNotice("");
+              const password = delivery === "manual" ? manualPassword(f) : "";
               const values = {
                 gym_name: String(f.get("gym_name")).trim(),
                 manager_name: String(f.get("manager_name")).trim(),
@@ -188,10 +195,14 @@ export default function Platform({
               });
               check({ error });
               await refresh();
-              if (data?.invitation_id) await send(data.invitation_id);
+              if (data?.invitation_id) {
+                if (delivery === "manual") setNotice(await createManualAccess(data.invitation_id, password));
+                else await send(data.invitation_id);
+              }
             }}
           >
             <div className="form-grid">
+              <label>Cómo crear el acceso<select value={delivery} onChange={e => setDelivery(e.target.value)}><option value="manual">Usuario manual · sin enviar correo</option><option value="email">Invitación por correo</option></select></label>
               <Field
                 name="gym_name"
                 label="Nombre del gimnasio"
@@ -214,8 +225,12 @@ export default function Platform({
                 required
               />
             </div>
+            {delivery === "manual" && <PasswordFields />}
           </DataForm>
         </section>
+        {manualFor && <>
+          <ManualUser key={manualFor} gymId={manualFor} manager invitation={invites.find(i => i.gym_id === manualFor && !i.accepted_at && !i.revoked_at && Date.parse(i.expires_at) > now)} onCreated={refresh} onCancel={() => setManualFor("")} />
+        </>}
         {inviteFor && (
           <section className="panel">
             <h2>
@@ -229,6 +244,7 @@ export default function Platform({
             <DataForm
               key={inviteFor}
               submit="Enviar invitación del encargado"
+              resetOnSuccess
               onSubmit={async (f) => {
                 const { data, error } = await db.rpc("invite_gym_manager", {
                   g: inviteFor,
@@ -314,6 +330,7 @@ export default function Platform({
                   Abrir gimnasio <ArrowUpRight size={18} />
                 </button>
                 <div className="gym-actions">
+                  <button className="text-button" onClick={() => { setManualFor(g.id); setInviteFor(""); window.scrollTo({ top: 0, behavior: "instant" }); }}>Crear usuario manual</button>
                   <button
                     className="text-button"
                     onClick={() => setInviteFor(g.id)}

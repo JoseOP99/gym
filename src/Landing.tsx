@@ -27,6 +27,7 @@ export default function Landing({ signedIn }: { signedIn: boolean }) {
         <nav aria-label="Navegación pública">
           <a href="#entrena">Entrena</a>
           <a href="#planes">Planes</a>
+          <a href="#gimnasio">El gimnasio</a>
           <a href="#empieza">Empieza aquí</a>
         </nav>
         <a className="login-link" href={signedIn ? "#panel" : "#login"}>
@@ -35,6 +36,7 @@ export default function Landing({ signedIn }: { signedIn: boolean }) {
         </a>
       </header>
       <main id="contenido">
+        <div className="demo-banner">Sitio de demostración · Información, horarios y tarifas de ejemplo, personalizables para cada gimnasio.</div>
         <section className="gym-hero" aria-labelledby="hero-title">
           <img
             className="gym-hero-image"
@@ -206,6 +208,17 @@ export default function Landing({ signedIn }: { signedIn: boolean }) {
             Los servicios, horarios y valores definitivos se confirman en
             recepción. Imágenes de referencia.
           </p>
+        </section>
+        <section id="gimnasio" className="landing-section demo-gym-section">
+          <p className="landing-kicker dark">CONOCE TU GIMNASIO · EJEMPLO</p>
+          <h2>Un espacio para tu comunidad.</h2>
+          <p className="section-intro">Así puede verse la información de tu gimnasio. Al personalizar tu sitio, estos ejemplos se reemplazan por tus datos, fotos y actividades.</p>
+          <div className="demo-info-grid">
+            <article><h3>Encuéntranos</h3><p>Nombre de tu gimnasio</p><p>Dirección y barrio por personalizar.</p><p>Municipio y referencia de ubicación.</p></article>
+            <article><h3>Horarios de ejemplo</h3><p>Lunes a viernes: 5:00 a. m. a 9:00 p. m.</p><p>Sábados: 7:00 a. m. a 2:00 p. m.</p><p>Domingos y festivos: por confirmar.</p></article>
+            <article><h3>Actividades de ejemplo</h3><p>Entrenamiento de fuerza y acondicionamiento.</p><p>Clase grupal de bienvenida.</p><p>Jornada de entrenamiento en comunidad.</p></article>
+          </div>
+          <p className="plans-note">Contenido ilustrativo. Las actividades y horarios no corresponden a una programación real. La gestión de publicaciones queda para una próxima etapa.</p>
         </section>
         <section id="empieza" className="start-section">
           <div>

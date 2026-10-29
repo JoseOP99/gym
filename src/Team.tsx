@@ -2,14 +2,13 @@ import { check } from "./lib/check";
 import { useEffect, useState } from "react";
 import { db } from "./lib/supabase";
 import { DataForm, Empty, ErrorMessage, Field } from "./components";
-import { money } from "./lib/domain";
 import type { Role, Staff } from "./lib/domain";
+import ManualUser from "./ManualUser";
 type Invitation = {
   id: string;
   name: string;
   email: string;
   role: Role;
-  rate: number;
   expires_at: string;
   accepted_at: string | null;
   revoked_at: string | null;
@@ -17,8 +16,8 @@ type Invitation = {
 const names: Record<Role, string> = {
   owner: "Encargado",
   reception: "Operario",
-  inventory: "Inventario",
-  instructor: "Instructor",
+  inventory: "Operario",
+  instructor: "Operario",
 };
 export default function Team({ gymId }: { gymId: string }) {
   const [staff, setStaff] = useState<Staff[]>([]),
@@ -28,13 +27,15 @@ export default function Team({ gymId }: { gymId: string }) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const refresh = () => setVersion((v) => v + 1);
+  const [manualInvite, setManualInvite] = useState<Invitation | undefined>();
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let alive = true;
     Promise.all([
-      db.from("staff").select("*").eq("gym_id", gymId).order("name"),
+      db.from("staff").select("user_id,name,role,active").eq("gym_id", gymId).order("name"),
       db
         .from("staff_invitations")
-        .select("*")
+        .select("id,name,email,role,expires_at,accepted_at,revoked_at")
         .eq("gym_id", gymId)
         .eq("kind", "staff")
         .order("created_at", { ascending: false })
@@ -45,6 +46,7 @@ export default function Team({ gymId }: { gymId: string }) {
         if (alive) {
           setStaff(results[0].data || []);
           setInvites(results[1].data || []);
+          setNow(Date.now());
         }
       })
       .catch((e) => {
@@ -89,19 +91,21 @@ export default function Team({ gymId }: { gymId: string }) {
   return (
     <>
       <ErrorMessage message={error} />
+      <ManualUser gymId={gymId} invitation={manualInvite} onCreated={refresh} onCancel={manualInvite ? () => setManualInvite(undefined) : undefined} />
       {notice && (
         <p role="status" className="notice">
           {notice}
         </p>
       )}
-      <section className="panel">
+      <details className="panel email-invite-panel">
+        <summary>Invitar por correo como alternativa</summary>
         <h2>Invita a tu equipo</h2>
         <p className="muted">
-          Elige qué puede hacer cada persona. Tú, como encargado, tienes acceso
-          a todos los módulos de este gimnasio.
+          Todos los colaboradores reciben el permiso Operario. Tú conservas la administración completa del gimnasio.
         </p>
         <DataForm
           submit="Crear invitación y enviar correo"
+          resetOnSuccess
           onSubmit={async (f) => {
             setNotice("");
             const { data, error } = await db
@@ -110,8 +114,7 @@ export default function Team({ gymId }: { gymId: string }) {
                 gym_id: gymId,
                 email: String(f.get("email")).trim().toLowerCase(),
                 name: String(f.get("name")).trim(),
-                role: f.get("role"),
-                rate: Math.round(Number(f.get("rate")) * 100),
+                role: "reception",
               })
               .select("id")
               .single();
@@ -139,55 +142,31 @@ export default function Team({ gymId }: { gymId: string }) {
               required
               maxLength={254}
             />
-            <label>
-              Permiso
-              <select name="role">
-                <option value="inventory">
-                  Inventario · productos y máquinas
-                </option>
-                <option value="reception">Operario · clientes y ventas</option>
-                <option value="instructor">
-                  Instructor · consulta de clientes
-                </option>
-              </select>
-            </label>
-            <Field
-              label="Tarifa por hora (COP)"
-              name="rate"
-              type="number"
-              min={0}
-              max={100000000}
-              step="0.01"
-              defaultValue={0}
-              required
-            />
+            <div className="access-scope"><strong>Permiso: Operario</strong><p>Ingresos, clientes, ventas, productos y máquinas. Sin archivar registros ni administrar accesos o tarifas del gimnasio.</p></div>
           </div>
         </DataForm>
         <p className="small muted">
-          Las invitaciones duran 7 días. El personal de inventario no puede
-          borrar registros ni ver ventas o finanzas.
+          Las invitaciones duran 7 días. Los operarios no pueden archivar registros, gestionar el equipo ni consultar las finanzas.
         </p>
-      </section>
+      </details>
       <section className="panel">
         <h2>Personal con acceso</h2>
         {staff.length ? (
           <div className="table-wrap">
-            <table>
+            <table className="team-table">
               <thead>
                 <tr>
                   <th>Nombre</th>
                   <th>Permiso</th>
-                  <th>Tarifa / hora</th>
                   <th>Acceso</th>
                 </tr>
               </thead>
               <tbody>
                 {staff.map((s) => (
                   <tr key={s.user_id}>
-                    <td>{s.name}</td>
-                    <td>{names[s.role]}</td>
-                    <td>{money(s.rate)}</td>
-                    <td>
+                    <td data-label="Nombre">{s.name}</td>
+                    <td data-label="Permiso">{names[s.role]}</td>
+                    <td data-label="Acceso">
                       <button
                         className="secondary"
                         disabled={busy}
@@ -222,7 +201,7 @@ export default function Team({ gymId }: { gymId: string }) {
         <h2>Invitaciones</h2>
         {invites.length ? (
           <div className="table-wrap">
-            <table>
+            <table className="team-table">
               <thead>
                 <tr>
                   <th>Persona</th>
@@ -234,21 +213,22 @@ export default function Team({ gymId }: { gymId: string }) {
               <tbody>
                 {invites.map((i) => (
                   <tr key={i.id}>
-                    <td>
+                    <td data-label="Persona"><div>
                       {i.name}
                       <small>{i.email}</small>
-                    </td>
-                    <td>{names[i.role]}</td>
-                    <td>
+                    </div></td>
+                    <td data-label="Permiso">{names[i.role]}</td>
+                    <td data-label="Estado">
                       {i.accepted_at
                         ? "Aceptada"
                         : i.revoked_at
                           ? "Revocada"
                           : "Pendiente · vence " + i.expires_at.slice(0, 10)}
                     </td>
-                    <td>
+                    <td data-label="Acciones">
                       {!i.accepted_at && !i.revoked_at && (
                         <div className="actions">
+                          <button className="secondary" disabled={busy || Date.parse(i.expires_at) <= now} onClick={() => { setManualInvite(i); window.scrollTo({ top: 0, behavior: "instant" }); }}>Crear acceso sin correo</button>
                           <button
                             className="secondary"
                             disabled={busy}

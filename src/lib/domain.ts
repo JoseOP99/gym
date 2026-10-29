@@ -1,4 +1,8 @@
 export type Role = "owner" | "reception" | "inventory" | "instructor";
+// Preserve legacy database values while exposing one combined operational role.
+export function effectiveRole(role: Role): Role {
+  return role === "owner" ? "owner" : "reception";
+}
 export type Gym = {
   id: string;
   name: string;
@@ -30,16 +34,17 @@ export type Machine = {
   name: string;
   status: string;
   notes: string;
+  asset_value: number | null;
 };
 export type Staff = {
   user_id: string;
   name: string;
   role: Role;
-  rate: number;
   active: boolean;
 };
 export type Sale = {
   id: string;
+  client_id: string | null;
   client_name: string;
   total: number;
   status: string;
@@ -59,6 +64,9 @@ export type Membership = {
   starts_on: string;
   expires_on: string;
 };
+export function membershipCoversDay(membership: Pick<Membership, "starts_on" | "expires_on"> | null, today = localDate()) {
+  return Boolean(membership && membership.starts_on <= today && today < membership.expires_on);
+}
 export type Cash = {
   id: string;
   description: string;

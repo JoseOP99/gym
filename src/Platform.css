@@ -109,22 +109,25 @@
   justify-content: space-between;
 }
 .gym-actions {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  padding: 14px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-control);
+  padding: var(--space-fields) 0;
 }
+.gym-actions .text-button { border-color: var(--border); padding: 10px 12px; font-size: 13px; }
+.gym-actions .text-button:hover { background: #eff3eb; text-decoration: none; }
 .trial-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-control);
   flex-wrap: wrap;
   border-top: 1px solid var(--border);
   padding-top: 15px;
 }
 .trial-controls button {
-  font-size: 11px;
-  padding: 9px 12px;
+  font-size: 13px;
+  padding: 10px 14px;
+  min-height: 44px;
 }
 .access-locked {
   max-width: 580px;

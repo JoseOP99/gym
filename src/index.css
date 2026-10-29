@@ -10,6 +10,9 @@
   --muted: #68746c;
   --border: #e2e7df;
   --cream: #f6f7f3;
+  --space-control: 12px;
+  --space-fields: 20px;
+  --space-group: 24px;
 }
 * {
   box-sizing: border-box;
@@ -125,7 +128,7 @@ small {
 .text-button {
   background: transparent;
   color: var(--green);
-  padding: 9px 0;
+  padding: 10px 12px;
   font-size: 13px;
 }
 .text-button:hover {
@@ -157,10 +160,57 @@ small {
   border-radius: 7px;
 }
 .form-success {
-  display: inline-block;
+  display: block;
   color: var(--green);
   font-size: 13px;
-  margin: 12px;
+  margin: 0;
+}
+.data-form fieldset {
+  display: grid;
+  gap: var(--space-fields);
+}
+.form-content {
+  display: grid;
+  gap: var(--space-fields);
+  min-width: 0;
+}
+.form-content > label,
+.form-content > p,
+.form-grid > label {
+  margin-bottom: 0;
+}
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-control);
+}
+.form-actions button { max-width: 100%; text-align: center; }
+.form-actions button svg { flex: 0 0 auto; }
+.form-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.panel-footnote {
+  margin: var(--space-group) 0 0;
+  padding-top: var(--space-fields);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.access-scope { grid-column: 1 / -1; padding-block: 4px; }
+.access-scope strong { font-size: 14px; color: var(--green); }
+.access-scope p { margin: 6px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 70ch; }
+.email-invite-panel > summary { cursor: pointer; font-weight: 600; padding-block: 8px; min-height: 44px; }
+.email-invite-panel[open] > summary { margin-bottom: var(--space-group); }
+.panel > p { max-width: 70ch; }
+@media (max-width: 640px) {
+  .form-actions { align-items: stretch; flex-direction: column; }
+  .form-actions button { width: 100%; }
 }
 .eyebrow {
   font-size: 11px;

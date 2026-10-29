@@ -6,11 +6,21 @@ export function DataForm({
   onSubmit,
   submit,
   disabled = false,
+  clearPasswords = false,
+  secondaryAction,
+  showSuccess = true,
+  resetOnSuccess = false,
+  submitVariant = "primary",
 }: {
   children: ReactNode;
   onSubmit: (form: FormData) => Promise<void>;
   submit: string;
   disabled?: boolean;
+  clearPasswords?: boolean;
+  secondaryAction?: ReactNode;
+  showSuccess?: boolean;
+  resetOnSuccess?: boolean;
+  submitVariant?: "primary" | "secondary";
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -18,16 +28,19 @@ export function DataForm({
   const lock = useRef(false);
   return (
     <form
+      className="data-form"
       onSubmit={async (e) => {
         e.preventDefault();
         if (lock.current || disabled) return;
-        const data = new FormData(e.currentTarget);
+        const form = e.currentTarget;
+        const data = new FormData(form);
         lock.current = true;
         setBusy(true);
         setError("");
         setSuccess(false);
         try {
           await onSubmit(data);
+          if (resetOnSuccess) form.reset();
           setSuccess(true);
         } catch (e) {
           setError(
@@ -36,19 +49,27 @@ export function DataForm({
               : "No se pudo guardar. Intenta de nuevo.",
           );
         } finally {
+          if (clearPasswords) {
+            form.querySelectorAll<HTMLInputElement>('input[type="password"]').forEach(input => { input.value = ""; });
+            data.delete("password");
+            data.delete("confirm_password");
+          }
           setBusy(false);
           lock.current = false;
         }
       }}
     >
       <fieldset disabled={busy || disabled}>
-        {children}
+        <div className="form-content">{children}</div>
         <ErrorMessage message={error} />
-        <button type="submit">
+        <div className="form-actions">
+        <button type="submit" className={submitVariant === "secondary" ? "secondary" : undefined}>
           {busy ? "Guardando…" : submit}
           <ArrowRight size={17} />
         </button>
-        {success && (
+        {secondaryAction}
+        </div>
+        {success && showSuccess && (
           <span className="form-success" role="status">
             Operación completada.
           </span>

@@ -651,3 +651,11 @@
     text-align: left;
   }
 }
+.demo-banner { background: #e8efdc; color: #173d2d; padding: 14px 6%; font-size: 14px; line-height: 1.6; text-align: center; }
+.demo-gym-section { background: #f4f5ef; }
+.demo-gym-section > .section-intro { max-width: 720px; }
+.demo-info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 32px 0; }
+.demo-info-grid article { background: #fff; border: 1px solid #d8dfd2; padding: 28px; border-radius: 12px; }
+.demo-info-grid h3 { font-size: 22px; margin-bottom: 20px; }
+.demo-info-grid p { color: #435442; line-height: 1.7; font-size: 16px; }
+@media (max-width: 750px) { .demo-info-grid { grid-template-columns: 1fr; } }
