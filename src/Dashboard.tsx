@@ -134,6 +134,7 @@ export default function Dashboard({
     [items, setItems] = useState<Item[]>([]),
     [itemsLoading, setItemsLoading] = useState(false),
     [edit, setEdit] = useState<Client | Product | Machine | null>(null);
+  const [accountSearch, setAccountSearch] = useState("");
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [visitNotice, setVisitNotice] = useState("");
   useEffect(() => {
@@ -261,11 +262,12 @@ export default function Dashboard({
                 .order("closed_at", { ascending: false })
                 .order("id")
             : query.order("opened_at", { ascending: false });
+        if (tab === "pos" && accountSearch.trim()) query = query.ilike("client_name", "%" + accountSearch.trim().replace(/[%_\\]/g, "") + "%");
         queries.push(
           read(
             query.range(
-              tab === "history" ? page * 50 : 0,
-              tab === "history" ? page * 50 + 49 : 99,
+              ["history", "pos"].includes(tab) ? page * 50 : 0,
+              ["history", "pos"].includes(tab) ? page * 50 + 49 : 99,
             ),
             setSales,
           ),
@@ -296,7 +298,7 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [tab, gym.id, role, version, page, search, from, to, canSell]);
+  }, [tab, gym.id, role, version, page, search, from, to, canSell, accountSearch]);
   useEffect(() => {
     let cancelled = false;
     void Promise.resolve()
@@ -348,6 +350,7 @@ export default function Dashboard({
   function navigate(id: string) {
     setEntryClient("");
     setEntrySearch("");
+    setAccountSearch("");
     setMenuOpen(false);
     requestAnimationFrame(() => document.getElementById("page-title")?.focus());
     setTab(id);
@@ -613,7 +616,7 @@ export default function Dashboard({
               <div>
                 <section className="panel">
                   <h2>Registrar atención</h2>
-                  <p className="muted">Registra una visita por cliente al día. Si ya ingresó, se abrirá su cuenta existente sin cobrar otro pase.</p>
+                  <p className="muted">Si regresa hoy, continúa su cuenta pendiente o abre otra para productos sin cobrar otro pase. Lo ya pagado se conserva.</p>
                   {visitNotice && <p className="notice" role="status">{visitNotice}</p>}
                   <DataForm
                     submit={entryKind === "products" ? "Abrir compra de productos" : "Registrar ingreso"}
@@ -629,7 +632,7 @@ export default function Dashboard({
                       const result = await db.from("sales").select("*").eq("gym_id", gym.id).eq("id", data).single();
                       check(result);
                       setSelectedSale(result.data);
-                      setVisitNotice(entryKind === "products" ? "Compra de productos abierta. No registra otro ingreso ni cobra pase diario." : data !== requestId
+                      setVisitNotice(entryKind === "products" ? "Compra de productos abierta. No registra otro ingreso ni cobra pase diario." : result.data.kind === "products" ? "El ingreso de hoy ya está pagado. Se abrió una cuenta adicional para productos, sin cobrar otra entrada." : data !== requestId
                         ? `Esta persona ya tiene un ingreso registrado. Se abrió la cuenta del ${new Date(result.data.opened_at).toLocaleString("es-CO", { timeZone: "America/Bogota" })}. ${result.data.status === "closed" ? "Ya está pagada y solo puede consultarse." : "Puedes continuar editando esta cuenta."}`
                         : "Ingreso registrado. La cuenta está lista.");
                       setActiveSale(data);
@@ -658,6 +661,8 @@ export default function Dashboard({
                 </section>
                 <section className="panel">
                   <h2>Cuentas abiertas</h2>
+                  <label>Buscar cuenta por cliente<input type="search" value={accountSearch} maxLength={100} placeholder="Nombre del cliente con cuenta pendiente" onChange={e => { setAccountSearch(e.target.value); setPage(0); }} /></label>
+                  <p className="form-help">Busca en todas las cuentas pendientes del gimnasio.</p>
                   {sales.length ? (
                     sales.map((s) => (
                       <button
@@ -682,8 +687,8 @@ export default function Dashboard({
                     ))
                   ) : (
                     <Empty
-                      title="No hay cuentas abiertas"
-                      text="Registra el ingreso de un cliente para comenzar."
+                      title={accountSearch ? "No hay cuentas con ese nombre" : "No hay cuentas abiertas"}
+                      text={accountSearch ? "Prueba otro nombre o limpia la búsqueda." : "Registra el ingreso de un cliente para comenzar."}
                     />
                   )}
                 </section>
@@ -702,7 +707,7 @@ export default function Dashboard({
                       const result = await db.from("sales").select("*").eq("gym_id", gym.id).eq("id", opened.data).single();
                       check(result); setSelectedSale(result.data); setActiveSale(opened.data); setVisitNotice("Nueva compra de productos. La cuenta pagada se conserva.");
                     })}>Nueva compra para este cliente</button></div>}
-                    {selectedSale?.status !== "closed" && <div className="ticket-products"><h3>Agregar productos</h3><p className="form-help">Añade aquí lo que lleva el cliente. El cobro final está separado abajo.</p>
+                    {selectedSale?.status !== "closed" && <div className="ticket-products"><h3>Agregar productos</h3><p className="form-help">El inventario se descuenta al añadir, aunque quede pendiente de pago. Si quitas un producto, vuelve al inventario.</p>
                     <DataForm
                       key={activeSale}
                       disabled={selectedSale?.status === "closed"}
@@ -729,7 +734,7 @@ export default function Dashboard({
                           {products
                             .filter((p) => p.active)
                             .map((p) => (
-                              <option value={p.id} key={p.id}>
+                              <option value={p.id} key={p.id} disabled={p.stock === 0}>
                                 {p.name} · {money(p.price)} · {p.stock}{" "}
                                 disponibles
                               </option>
@@ -788,7 +793,7 @@ export default function Dashboard({
                             method: f.get("method") || "cash",
                           }),
                         );
-                        setActiveSale("");
+                        setSelectedSale(current => current ? { ...current, status: "closed", total: total(items) } : current);
                         refresh();
                       }}
                     >
@@ -1500,7 +1505,7 @@ export default function Dashboard({
               </p>
             </section>
           )}
-          {["clients", "products", "machines", "history", "finance"].includes(
+          {["pos", "clients", "products", "machines", "history", "finance"].includes(
             tab,
           ) && (
             <div className="pagination">

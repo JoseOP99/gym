@@ -69,3 +69,8 @@ Acceso y navegación publicados: deployment dpl_91Kcqn6vqFKkq9PJuPk1cfq8Jywv REA
 - Build/lint correctos; 17 pruebas pasan, incluida cobertura en inicio, último día, vencimiento, inicio futuro y ausencia de membresía.
 - Prueba de navegador con APIs simuladas: búsqueda remota ilike con límite 20; aviso de cobertura sin pase; cierre de ingreso por cero; selección/búsqueda limpias tras registrar; nueva compra desde cuenta pagada; agua y bocadillo suman COP 5.000 sin alterar el comprobante anterior; clase secundaria para añadir frente al botón principal de cobro; cierre del nuevo comprobante. Capturas a 1440, 768 y 390 px revisadas, sin desbordamiento ni errores JS. Sin escrituras reales de prueba.
 - Ambas migraciones aplicadas a Supabase GYM. Verificación de lectura: función de ingreso contiene cobertura por inicio/vencimiento; open_product_sale existe, ejecución anónima denegada y actualización directa de sales no disponible a authenticated. Falta el ensayo transaccional real de una venta con membresía; no se insertaron fixtures para realizarlo.
+
+## Inventario inmediato, búsqueda y regreso
+
+- Build/lint y 17 pruebas correctos. Navegador con APIs simuladas: búsqueda remota de clientes y cuentas por nombre, cierre conserva acceso a Nueva compra para este cliente, apertura de compra adicional y ancho móvil de 390 px sin desbordamiento.
+- Migración aplicada en GYM. Lectura SQL confirma descuento en add_item, devolución en remove_item, ausencia de descuento en close_sale y derivación de regreso a open_product_sale. Las cuatro funciones rechazan ejecución anónima y conservan acceso autenticado con validación interna. Sin fixtures ni escrituras de prueba en producción; no se ensayó una venta real para verificar el saldo transaccional.

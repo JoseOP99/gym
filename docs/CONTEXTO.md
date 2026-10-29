@@ -94,6 +94,12 @@ Migraciones aplicadas: `20261029162629_membership_included_entry.sql` y `2026102
 
 Ingresos y ventas usa EntryClientPicker: búsqueda por nombre sobre todos los clientes activos del gimnasio, espera de 250 ms, máximo 20 coincidencias ordenadas y sin límite global de 100 clientes. La membresía del cliente seleccionado se consulta específicamente, incluyendo su fecha de inicio.
 
-Las ventas admiten kind=products. open_product_sale valida rol, gimnasio y cliente en PostgreSQL y abre/reutiliza una compra de productos pendiente para la persona, con clave idempotente y bloqueo de cliente. No registra visita ni pase, no reabre la cuenta pagada ni renueva membresía. La interfaz ofrece Solo productos y Nueva compra para este cliente cuando consulta una cuenta cerrada. Una compra posterior genera otro comprobante independiente; se pagan y descuentan existencias al cerrar con el flujo transaccional existente.
+Las ventas admiten kind=products. open_product_sale valida rol, gimnasio y cliente en PostgreSQL y abre/reutiliza una compra de productos pendiente para la persona, con clave idempotente y bloqueo de cliente. No registra visita ni pase, no reabre la cuenta pagada ni renueva membresía. La interfaz ofrece Solo productos y Nueva compra para este cliente cuando consulta una cuenta cerrada. Una compra posterior genera otro comprobante independiente; las existencias se descuentan al agregar productos y el pago se registra al cerrar.
 
 Entrega solicitada mediante commit/push a main; no se solicita un despliegue adicional por la API de Vercel. Comprobar el despliegue generado por Git tras el push.
+
+## Inventario inmediato y regreso el mismo día
+
+Migración 20261029172044_immediate_stock_and_same_day_return aplicada. add_item descuenta con UPDATE condicionado por stock y dentro de la misma transacción del concepto; remove_item devuelve solo la línea efectivamente eliminada; close_sale registra el pago sin volver a descontar. Los permisos, aislamiento y guardas de ventas cerradas permanecen. La transición bloquea ventas/conceptos/productos y exige cero líneas de productos pendientes anteriores, condición comprobada al aplicar; no se ajustaron saldos históricos.
+
+open_sale deriva a open_product_sale cuando el ingreso de hoy ya está cerrado. Reutiliza compras pendientes, sin cobrar otro pase ni modificar la venta pagada. Al cobrar, la interfaz mantiene el comprobante visible y ofrece Nueva compra para este cliente. Búsqueda remota en cuentas abiertas con páginas de 50; búsqueda de clientes sin límite global de 100.

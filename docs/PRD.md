@@ -33,3 +33,5 @@ Migración aplicada y frontend publicado en producción:
 - R15: inicio público de muestra con información claramente ilustrativa para personalizar por gimnasio. Gestión de publicaciones fuera de esta etapa.
 
 Verificación de entrega real de una nueva invitación de encargado y su aceptación; cuenta SMTP propia si se ofrece a terceros; recordatorios automáticos de membresía (cola SQL preparada, envío/programación pendientes); marca y referencias definitivas de cada cliente.
+
+- R19: descontar stock al agregar productos, devolver al quitar de una cuenta abierta y no descontar al cobrar. Regreso del día abre compra adicional sin nuevo pase. Buscar cuentas pendientes por cliente con paginación.
