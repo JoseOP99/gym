@@ -2,21 +2,18 @@ import { check } from "./lib/check";
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Activity, ShieldCheck } from "lucide-react";
-import { db, configured } from "./lib/supabase";
+import { db, configured, initialAuthCallback } from "./lib/supabase";
 import type { Gym, Role } from "./lib/domain";
 import { DataForm, Field, Footer, ErrorMessage } from "./components";
 import Dashboard from "./Dashboard";
 import Landing from "./Landing";
 import "./App.css";
 export default function App() {
-  const [route, setRoute] = useState(() => window.location.hash);
-  const [setup, setSetup] = useState(
-    () =>
-      new URLSearchParams(window.location.search).get("setup") === "1" ||
-      ["invite", "recovery"].includes(
-        new URLSearchParams(window.location.hash.slice(1)).get("type") || "",
-      ),
+  const [route, setRoute] = useState(() =>
+    initialAuthCallback.hasAuthResponse ? "#panel" : window.location.hash,
   );
+  const [setup, setSetup] = useState(initialAuthCallback.setup);
+  const [callbackError, setCallbackError] = useState(initialAuthCallback.error);
   useEffect(() => {
     const change = () => setRoute(window.location.hash);
     window.addEventListener("hashchange", change);
@@ -38,6 +35,28 @@ export default function App() {
     });
     return () => data.subscription.unsubscribe();
   }, []);
+  if (callbackError)
+    return (
+      <main className="setup">
+        <h1>No pudimos abrir este enlace</h1>
+        <ErrorMessage message={callbackError} />
+        <button
+          onClick={() => {
+            setCallbackError("");
+            setSetup(false);
+            window.history.replaceState(
+              null,
+              "",
+              window.location.pathname + "#login",
+            );
+            setRoute("#login");
+          }}
+        >
+          Volver al acceso para pedir otro correo
+        </button>
+        <Footer />
+      </main>
+    );
   if (!["#login", "#panel"].includes(route) && !setup)
     return <Landing signedIn={Boolean(session)} />;
   if (!configured)
@@ -51,6 +70,30 @@ export default function App() {
     return (
       <main className="setup" aria-busy="true">
         Preparando tu espacio…
+      </main>
+    );
+  if (setup && !session)
+    return (
+      <main className="setup">
+        <h1>Abre el enlace de recuperación</h1>
+        <p>
+          Para crear una contraseña necesitas abrir el enlace más reciente que
+          enviamos a tu correo. Puede haber vencido o haberse usado ya.
+        </p>
+        <button
+          onClick={() => {
+            setSetup(false);
+            window.history.replaceState(
+              null,
+              "",
+              window.location.pathname + "#login",
+            );
+            setRoute("#login");
+          }}
+        >
+          Volver al acceso
+        </button>
+        <Footer />
       </main>
     );
   if (session && setup)
@@ -143,19 +186,19 @@ function Auth({ initialError }: { initialError: string }) {
             {confirm
               ? "Confirma tu cuenta"
               : recover
-              ? "Recupera tu acceso"
-              : register
-                ? "Crea tu cuenta"
-                : "Qué bueno verte."}
+                ? "Recupera tu acceso"
+                : register
+                  ? "Crea tu cuenta"
+                  : "Qué bueno verte."}
           </h2>
           <p className="muted">
             {confirm
               ? "Te enviaremos un nuevo enlace para confirmar tu correo."
               : recover
-              ? "Te enviaremos un enlace para establecer tu contraseña."
-              : register
-                ? "Confirma tu correo para crear tu gimnasio o unirte al equipo."
-                : "Ingresa con el correo de tu cuenta para continuar."}
+                ? "Te enviaremos un enlace para establecer tu contraseña."
+                : register
+                  ? "Confirma tu correo para crear tu gimnasio o unirte al equipo."
+                  : "Ingresa con el correo de tu cuenta para continuar."}
           </p>
           <ErrorMessage message={initialError} />
           {notice && (
@@ -164,9 +207,23 @@ function Auth({ initialError }: { initialError: string }) {
             </p>
           )}
           <DataForm
-            key={confirm ? "confirm" : recover ? "recover" : register ? "register" : "login"}
+            key={
+              confirm
+                ? "confirm"
+                : recover
+                  ? "recover"
+                  : register
+                    ? "register"
+                    : "login"
+            }
             submit={
-              confirm ? "Reenviar confirmación" : recover ? "Enviar enlace" : register ? "Crear cuenta" : "Ingresar"
+              confirm
+                ? "Reenviar confirmación"
+                : recover
+                  ? "Enviar enlace"
+                  : register
+                    ? "Crear cuenta"
+                    : "Ingresar"
             }
             onSubmit={async (f) => {
               setNotice("");
@@ -175,26 +232,36 @@ function Auth({ initialError }: { initialError: string }) {
                 password: String(f.get("password")),
               };
               if (confirm) {
-                check(await db.auth.resend({
-                  type: "signup",
-                  email: credentials.email,
-                  options: { emailRedirectTo: window.location.origin + "/#panel" },
-                }));
-                setNotice("Si tu cuenta está pendiente de confirmación, recibirás un nuevo enlace. Revisa también la carpeta de spam.");
+                check(
+                  await db.auth.resend({
+                    type: "signup",
+                    email: credentials.email,
+                    options: {
+                      emailRedirectTo: window.location.origin + "/#panel",
+                    },
+                  }),
+                );
+                setNotice(
+                  "Si tu cuenta está pendiente de confirmación, recibirás un nuevo enlace. Revisa también la carpeta de spam.",
+                );
               } else if (recover) {
                 check(
                   await db.auth.resetPasswordForEmail(credentials.email, {
-                    redirectTo: window.location.origin + "/?setup=1",
+                    redirectTo: window.location.origin + "/?auth=recovery",
                   }),
                 );
                 setNotice(
                   "Si existe una cuenta con este correo, recibirás un enlace para recuperar el acceso.",
                 );
               } else if (register) {
-                check(await db.auth.signUp({
-                  ...credentials,
-                  options: { emailRedirectTo: window.location.origin + "/#panel" },
-                }));
+                check(
+                  await db.auth.signUp({
+                    ...credentials,
+                    options: {
+                      emailRedirectTo: window.location.origin + "/#panel",
+                    },
+                  }),
+                );
                 setNotice(
                   "Revisa tu correo para confirmar la cuenta. Si ya existe, ingresa con tu contraseña.",
                 );
@@ -246,12 +313,17 @@ function Auth({ initialError }: { initialError: string }) {
               {register ? "Ya tengo cuenta" : "Crear cuenta"}
             </button>
           </div>
-          <button className="text-button" onClick={() => {
-            setConfirm(!confirm);
-            setRegister(false);
-            setRecover(false);
-            setNotice("");
-          }}>{confirm ? "Volver al login" : "Reenviar correo de confirmación"}</button>
+          <button
+            className="text-button"
+            onClick={() => {
+              setConfirm(!confirm);
+              setRegister(false);
+              setRecover(false);
+              setNotice("");
+            }}
+          >
+            {confirm ? "Volver al login" : "Reenviar correo de confirmación"}
+          </button>
           <p className="auth-note">
             <ShieldCheck size={16} /> Acceso para propietarios y colaboradores.
           </p>

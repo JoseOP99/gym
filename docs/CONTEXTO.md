@@ -35,6 +35,8 @@ Verificado: build, pruebas SQL de aislamiento, permisos, cierre idempotente, sto
 
 Confirmación: el alta y el reenvío indican el origen de la página actual como destino, y el login permite reenviar confirmaciones. Supabase Auth necesita Site URL https://gymtuchin.vercel.app y Redirect URLs https://gymtuchin.vercel.app/**. La herramienta conectada no permite editar esos ajustes de Auth: requieren guardarse en el dashboard.
 
+Recuperación: se captura el tipo de enlace antes de inicializar el SDK, que puede consumir el fragmento antes de montar React. Los nuevos enlaces apuntan a /?auth=recovery; los anteriores con setup=1 o type=recovery siguen reconocidos. Sin sesión válida o con error de enlace, se muestra una explicación en lugar de volver silenciosamente a la landing. La recuperación no asigna roles ni altera permisos.
+
 Pendiente: comprobar entrega real de invitaciones y configurar URLs de redirección de Auth/SMTP; completar worker y programación de recordatorios; personalizar nombre, datos y tarifas definitivas. La cola SQL de recordatorios existe, pero no envía correos.
 
 Avisos del proveedor: protección contra contraseñas filtradas desactivada; private.reminder_jobs tiene RLS sin políticas de usuario intencionalmente (solo funciones de servicio). No equivale a una auditoría completa.
